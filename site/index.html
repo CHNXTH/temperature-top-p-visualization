@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>Temperature 与 Top P 联动可视化</title>
+  <meta name="description" content="交互式理解 Temperature 概率分布和 Top P 核采样，以及两个参数的联动关系。" />
+  <style>
+    :root {
+      color-scheme: light;
+      --purple: #aaa4ed;
+      --lime: #efff83;
+      --page-bg: #ffffff;
+      --card-bg: #ffffff;
+      --panel-bg: #f2f2f2;
+      --border: #e4e4e7;
+      --text: #18181b;
+      --muted: #71717a;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--page-bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 用户要求：整体最大宽度为 900px，窄屏自动收缩。 */
+    .visualization {
+      width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 22px 20px 32px;
+    }
+
+    .section + .section { margin-top: 28px; }
+    .heading {
+      margin: 0 0 12px;
+      font-size: 18px;
+      line-height: 1.45;
+      font-weight: 650;
+    }
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 18px 16px;
+    }
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .value {
+      background: var(--panel-bg);
+      border-radius: 30px;
+      padding: 5px 12px;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="range"] {
+      display: block;
+      appearance: none;
+      -webkit-appearance: none;
+      width: 100%;
+      height: 10px;
+      margin: 6px 0 23px;
+      border: none;
+      border-radius: 20px;
+      background: var(--panel-bg);
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--purple);
+      border: 3px solid #fff;
+      box-shadow: 0 1px 5px #aaa4ed55;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--purple);
+      border: 3px solid #fff;
+      box-shadow: 0 1px 5px #aaa4ed55;
+    }
+    input[type="range"]:focus-visible {
+      outline: 2px solid var(--purple);
+      outline-offset: 6px;
+    }
+    .trackrow {
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr) 64px;
+      align-items: center;
+      gap: 10px;
+      margin: 12px 0;
+    }
+    .track {
+      height: 16px;
+      background: var(--panel-bg);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.18s ease, background-color 0.18s ease;
+    }
+    .number {
+      text-align: right;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+    }
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-wrap: wrap;
+      margin-top: 13px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .legend-item { display: inline-flex; align-items: center; white-space: nowrap; }
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 6px;
+      border-radius: 3px;
+    }
+    .dot--purple { background: var(--purple); }
+    .dot--lime { background: var(--lime); border: 1px solid #c8c8b0; }
+
+    @media (max-width: 440px) {
+      .visualization { padding: 16px 12px 24px; }
+      .panel { padding: 15px; }
+      .trackrow { grid-template-columns: 40px minmax(0, 1fr) 57px; gap: 7px; }
+      .heading { font-size: 17px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .fill { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="visualization" aria-label="Temperature 和 Top P 联动可视化">
+    <section class="section" aria-labelledby="temp-heading">
+      <h2 class="heading" id="temp-heading">Temperature：调整概率分布</h2>
+      <div class="panel">
+        <div class="top">
+          <label for="temperature-range">调整 Temperature 试试看</label>
+          <output class="value" id="temperature-value" for="temperature-range">T = 1.6</output>
+        </div>
+        <input id="temperature-range" type="range" min="0.2" max="2" step="0.1" value="1.6" aria-label="Temperature" />
+        <div id="temperature-bars" aria-live="off"></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="topp-heading">
+      <h2 class="heading" id="topp-heading">Top P：限制候选范围</h2>
+      <div class="panel">
+        <div class="top">
+          <label for="topp-range">调整 Top P 试试看</label>
+          <output class="value" id="topp-value" for="topp-range">P = 1.00</output>
+        </div>
+        <input id="topp-range" type="range" min="0.1" max="1" step="0.05" value="1" aria-label="Top P" />
+        <div id="topp-bars" aria-live="off"></div>
+        <div class="legend" aria-label="色彩说明">
+          <span class="legend-item"><i class="dot dot--purple" aria-hidden="true"></i>参与 · 紫色</span>
+          <span class="legend-item"><i class="dot dot--lime" aria-hidden="true"></i>排除 · 荧光色</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+      const labels = ['舒缓', '轻快', '温暖', '激烈', '悲伤'];
+      const base = [0.45, 0.30, 0.15, 0.07, 0.03];
+      const purple = '#aaa4ed';
+      const lime = '#efff83';
+      const temperatureSlider = document.getElementById('temperature-range');
+      const topPSlider = document.getElementById('topp-range');
+      const temperatureBars = document.getElementById('temperature-bars');
+      const topPBars = document.getElementById('topp-bars');
+
+      function makeRow(label, width, displayValue, color) {
+        const row = document.createElement('div');
+        row.className = 'trackrow';
+        const name = document.createElement('span');
+        name.textContent = label;
+        const track = document.createElement('div');
+        track.className = 'track';
+        const fill = document.createElement('div');
+        fill.className = 'fill';
+        fill.style.width = `${width}%`;
+        fill.style.backgroundColor = color;
+        track.appendChild(fill);
+        const value = document.createElement('span');
+        value.className = 'number';
+        value.textContent = displayValue;
+        row.append(name, track, value);
+        return row;
+      }
+
+      function temperatureProbabilities(temperature) {
+        // Softmax temperature scaling, using the example distribution as priors.
+        const scaled = base.map(p => Math.pow(p, 1 / temperature));
+        const total = scaled.reduce((a, b) => a + b, 0);
+        return scaled.map(p => p / total);
+      }
+
+      function nucleusMembership(probs, threshold) {
+        // Values remain in descending order for all T > 0.
+        // Include the token that first makes cumulative mass >= Top P.
+        let cumulative = 0;
+        return probs.map(probability => {
+          const include = cumulative < threshold - 1e-9;
+          cumulative += probability;
+          return include;
+        });
+      }
+
+      function render() {
+        const temperature = Number(temperatureSlider.value);
+        const topP = Number(topPSlider.value);
+        document.getElementById('temperature-value').textContent = `T = ${temperature.toFixed(1)}`;
+        document.getElementById('topp-value').textContent = `P = ${topP.toFixed(2)}`;
+
+        const probs = temperatureProbabilities(temperature);
+        const membership = nucleusMembership(probs, topP);
+
+        temperatureBars.replaceChildren(...labels.map((label, i) => {
+          const percent = probs[i] * 100;
+          return makeRow(label, percent, `${percent.toFixed(1)}%`, purple);
+        }));
+
+        topPBars.replaceChildren(...labels.map((label, i) => {
+          const participate = membership[i];
+          return makeRow(label, probs[i] * 100, participate ? '参与' : '排除', participate ? purple : lime);
+        }));
+      }
+
+      temperatureSlider.addEventListener('input', render);
+      topPSlider.addEventListener('input', render);
+      render();
+    })();
+  </script>
+</body>
+</html>
