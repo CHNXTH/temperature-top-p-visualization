@@ -37,13 +37,7 @@
       padding: 22px 20px 32px;
     }
 
-    .section + .section { margin-top: 28px; }
-    .heading {
-      margin: 0 0 12px;
-      font-size: 18px;
-      line-height: 1.45;
-      font-weight: 650;
-    }
+    .section + .section { margin-top: 14px; }
     .panel {
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -147,7 +141,6 @@
       .visualization { padding: 16px 12px 24px; }
       .panel { padding: 15px; }
       .trackrow { grid-template-columns: 40px minmax(0, 1fr) 57px; gap: 7px; }
-      .heading { font-size: 17px; }
     }
     @media (prefers-reduced-motion: reduce) {
       .fill { transition: none; }
@@ -157,10 +150,9 @@
 <body>
   <main class="visualization" aria-label="Temperature 和 Top P 联动可视化">
     <section class="section" aria-labelledby="temp-heading">
-      <h2 class="heading" id="temp-heading">Temperature：调整概率分布</h2>
       <div class="panel">
         <div class="top">
-          <label for="temperature-range">调整 Temperature 试试看</label>
+          <label id="temp-heading" for="temperature-range">Temperature：调整概率分布</label>
           <output class="value" id="temperature-value" for="temperature-range">T = 1.6</output>
         </div>
         <input id="temperature-range" type="range" min="0.2" max="2" step="0.1" value="1.6" aria-label="Temperature" />
@@ -169,10 +161,9 @@
     </section>
 
     <section class="section" aria-labelledby="topp-heading">
-      <h2 class="heading" id="topp-heading">Top P：限制候选范围</h2>
       <div class="panel">
         <div class="top">
-          <label for="topp-range">调整 Top P 试试看</label>
+          <label id="topp-heading" for="topp-range">Top P：限制候选范围</label>
           <output class="value" id="topp-value" for="topp-range">P = 1.00</output>
         </div>
         <input id="topp-range" type="range" min="0.1" max="1" step="0.05" value="1" aria-label="Top P" />
